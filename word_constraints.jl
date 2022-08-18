@@ -15,30 +15,22 @@ macro bind(def, element)
 end
 
 # ╔═╡ 98b31aa2-1b58-11ed-2476-87a9652f2d34
+# ╠═╡ show_logs = false
 using HTTP, DataFrames, CSV, PlutoUI, InfoZIP, ZipFile
 
 # ╔═╡ d87b02e1-4fa1-4136-859d-1f604c2958da
 md"""
 # Readme
 
-The goal of this notebook is to see a list of words that fit certain constraints.  In particular the available constraints are word length, unique letters counts, and specific unique letters.  An example of a use case would be to see all 5 letter words that contain only 2 unique letters including 'a'
+The goal of this notebook is to see a list of words that fit certain constraints.  In particular the available constraints are word length, unique letters counts, and specific unique letters.  An example of a use case would be to see all 5 letter words that contain only 2 unique letters including 'a' and excluding all other vowels.
+
+The final word list will depend on the dictionary selected.  There are 3 options from the most commonly used 25k words to a large dictionary of over 1.5M.
 """
 
 # ╔═╡ 8fac8fcb-0221-4068-8587-def0c3cabea0
 md"""
 # Select Desired Word Properties
-Word Length
-$(@bind n NumberField(1:10, 5))
-"""
-
-# ╔═╡ 23a3f6c9-0e72-4c70-bf86-e7dce14ab81c
-md"""
-Unique Letters
-$(@bind c NumberField(1:n, 2))
-Desired Letters 
-$(@bind desiredletters MultiSelect('a':'z', size = 4))
-Undesired Letters
-$(@bind undesiredletters MultiSelect('a':'z', size=4))
+#### Word Length $(@bind n NumberField(1:10, 5))
 """
 
 # ╔═╡ ef9b04ea-192b-421c-b359-9d35c0f55a74
@@ -53,7 +45,40 @@ md"""
 
 # ╔═╡ 7dab7d6d-8746-4266-976b-88c62e08e139
 md"""
-# Constants"
+# Constants
+"""
+
+# ╔═╡ 82f6fe1c-0139-4375-8e28-a1d632ae0d35
+const letters = collect('a':'z')
+
+# ╔═╡ 862e3e4b-cfd3-438a-bc62-a197a776449a
+const vowels = ['a', 'e', 'i', 'o', 'u', 'y']
+
+# ╔═╡ 76107a99-7039-4f63-98a8-08f7092fb5d7
+const consonants = setdiff(letters, vowels)
+
+# ╔═╡ 23a3f6c9-0e72-4c70-bf86-e7dce14ab81c
+md"""
+#### Unique Letters $(@bind c NumberField(1:n, 2))
+
+#### Required Letters 
+
+Vowels 
+$(@bind desiredvowels MultiCheckBox(vowels, select_all=true))
+
+Consonants
+$(@bind desiredconsonants MultiCheckBox(consonants, select_all=true))
+"""
+
+# ╔═╡ 8962b841-c043-4f4e-8573-c004a8d48acc
+md"""
+#### Forbidden Letters 
+
+Vowels
+$(@bind undesiredvowels MultiCheckBox(setdiff(vowels, desiredvowels), select_all=true))
+
+Consonants
+$(@bind undesiredconsonants MultiCheckBox(setdiff(consonants, desiredconsonants), select_all=true))
 """
 
 # ╔═╡ fd06a7d3-2fc6-4189-8cfe-45111728e54c
@@ -65,11 +90,8 @@ const word_loaders = Dict([
 
 # ╔═╡ 1932f5f2-3394-43cb-975b-6df0d468922c
 md"""
-Select Dictionary Word List $(@bind wordlist Select(collect(keys(word_loaders))))
+Select Dictionary Word List $(@bind wordlist Select(collect(keys(word_loaders)), default = "CommonWords_25k"))
 """
-
-# ╔═╡ ec46b707-a0a3-4e3d-8e10-4a5af94a403a
-const words = word_loaders[wordlist]
 
 # ╔═╡ e4ab6b70-7384-4564-95a9-3d2c2451e5e7
 md"""
@@ -107,28 +129,51 @@ end
 # ╔═╡ 5c1287f6-5fbd-4768-be66-7dbb67a2802b
 const word_properties = Dict(k => make_word_property_table(word_loaders[k]) for k in keys(word_loaders))
 
-# ╔═╡ 9f88ef8b-56c8-4304-8a82-f5e659e20229
-const word_property_table = word_properties[wordlist]
-
 # ╔═╡ ce352791-9680-44b0-84df-906b34253cc3
-tbl_select = groupby(select(filter(a -> a.length == n && a.unique_count == c, word_property_table), [:word, :unique_letters]), :unique_letters)
+tbl_select = groupby(select(filter(a -> a.length == n && a.unique_count == c, word_properties[wordlist]), [:word, :unique_letters]), :unique_letters)
 
 # ╔═╡ 2ee354c2-d9f5-4efc-b06a-c78180de20b7
-availablekeys = get_available_keys(desiredletters, undesiredletters, tbl_select)
+availablekeys = get_available_keys(union(desiredvowels, desiredconsonants), union(undesiredvowels, undesiredconsonants), tbl_select)
 
-# ╔═╡ 4921ee81-9e18-4784-9b95-394e74c08a06
+# ╔═╡ ff76d227-043f-422f-a087-914ce9027b25
+availablechars = isempty(availablekeys) ? Vector{Char}() : reduce(union, a.unique_letters for a in availablekeys) |> collect |> sort
+
+# ╔═╡ 04d388d1-898d-4838-927d-3cd731887d4e
 md"""
-Available Unique Letters
-$(@bind keyselect MultiSelect(availablekeys))
+Unselect characters to remove matching words that contain that letter
+$(@bind charselect MultiCheckBox(availablechars, default = availablechars, select_all=true))
 """
 
+# ╔═╡ d628a50a-15e4-408e-a15c-14c1ff4aafe0
+charset = Set(charselect)
+
+# ╔═╡ cf1f1cbf-7772-436e-84b2-8d8a5a909f1a
+keyselect = filter(k -> isempty(setdiff(k.unique_letters, charset)), availablekeys)
+
 # ╔═╡ d181317e-c844-43da-812d-927a66f478a4
-!isempty(keyselect) && reduce(vcat, (collect(tbl_select[k].word) for k in keyselect))
+finalwordlist = isempty(keyselect) ? Vector{String}() : reduce(vcat, (collect(tbl_select[k].word) for k in keyselect))
+
+# ╔═╡ a171f129-4847-4dba-a5f5-9a88fc18ac80
+if isempty(finalwordlist)
+	md"""
+	No matching words
+	"""
+else
+	Markdown.parse(reduce((a, b) -> "$a, $b", finalwordlist))
+end
 
 # ╔═╡ 26f8472a-886a-4401-9ea5-f4f59b2eb29b
 function n_letter_words(n::Integer)
 	filter(a -> length(a) == n, words)
 end
+
+# ╔═╡ 424b204f-35f1-4071-9021-8fc392d30af1
+md"""
+# Table of Contents Settings
+"""
+
+# ╔═╡ 85605b23-4beb-4baf-9317-0530bc11983b
+PlutoUI.TableOfContents(title="Table of Contents", indent=true)
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -562,23 +607,31 @@ uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
 # ╟─1932f5f2-3394-43cb-975b-6df0d468922c
 # ╟─8fac8fcb-0221-4068-8587-def0c3cabea0
 # ╟─23a3f6c9-0e72-4c70-bf86-e7dce14ab81c
-# ╟─4921ee81-9e18-4784-9b95-394e74c08a06
+# ╟─8962b841-c043-4f4e-8573-c004a8d48acc
 # ╟─ef9b04ea-192b-421c-b359-9d35c0f55a74
-# ╟─d181317e-c844-43da-812d-927a66f478a4
+# ╟─04d388d1-898d-4838-927d-3cd731887d4e
+# ╟─a171f129-4847-4dba-a5f5-9a88fc18ac80
 # ╟─2407b067-d7a3-48d4-8582-a223bed373db
 # ╠═98b31aa2-1b58-11ed-2476-87a9652f2d34
 # ╟─7dab7d6d-8746-4266-976b-88c62e08e139
+# ╠═82f6fe1c-0139-4375-8e28-a1d632ae0d35
+# ╠═862e3e4b-cfd3-438a-bc62-a197a776449a
+# ╠═76107a99-7039-4f63-98a8-08f7092fb5d7
 # ╠═fd06a7d3-2fc6-4189-8cfe-45111728e54c
 # ╠═5c1287f6-5fbd-4768-be66-7dbb67a2802b
-# ╠═ec46b707-a0a3-4e3d-8e10-4a5af94a403a
-# ╠═9f88ef8b-56c8-4304-8a82-f5e659e20229
 # ╟─e4ab6b70-7384-4564-95a9-3d2c2451e5e7
-# ╟─ce352791-9680-44b0-84df-906b34253cc3
+# ╠═d181317e-c844-43da-812d-927a66f478a4
+# ╠═ce352791-9680-44b0-84df-906b34253cc3
 # ╠═2ee354c2-d9f5-4efc-b06a-c78180de20b7
+# ╠═ff76d227-043f-422f-a087-914ce9027b25
+# ╠═d628a50a-15e4-408e-a15c-14c1ff4aafe0
+# ╠═cf1f1cbf-7772-436e-84b2-8d8a5a909f1a
 # ╟─c0b3d047-8b3c-45ef-9a16-ec1d15f5c172
 # ╠═260cb3ed-9090-4517-8e11-f358982276a1
 # ╠═c961807f-9d47-4625-bea9-48335701a0f7
 # ╠═ab2b13f6-79f0-4abe-8b79-02a650a0e0e2
 # ╠═26f8472a-886a-4401-9ea5-f4f59b2eb29b
+# ╟─424b204f-35f1-4071-9021-8fc392d30af1
+# ╠═85605b23-4beb-4baf-9317-0530bc11983b
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
