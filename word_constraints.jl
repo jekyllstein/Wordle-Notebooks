@@ -81,17 +81,8 @@ Consonants
 $(@bind undesiredconsonants MultiCheckBox(setdiff(consonants, desiredconsonants), select_all=true))
 """
 
-# ╔═╡ fd06a7d3-2fc6-4189-8cfe-45111728e54c
-const word_loaders = Dict([
-	"Big_Word_list_1517k" => filter(a -> isempty(setdiff(Set(a), 'a':'z')) && !isempty(a), split(String(open_zip(download("https://www.keithv.com/software/wlist/wlist_match1.zip"))["wlist_match1.txt"]), '\n')),
-	"InfoChimps_350k" => readlines(download("https://raw.githubusercontent.com/dwyl/english-words/master/words_alpha.txt")),
-	"CommonWords_25k" => readlines(download("https://raw.githubusercontent.com/dolph/dictionary/master/popular.txt"))
-])
-
-# ╔═╡ 1932f5f2-3394-43cb-975b-6df0d468922c
-md"""
-Select Dictionary Word List $(@bind wordlist Select(collect(keys(word_loaders)), default = "CommonWords_25k"))
-"""
+# ╔═╡ 488cce85-c8b6-4d75-b9d3-8924a05a7b73
+download("https://www.keithv.com/software/wlist/wlist_match1.zip")
 
 # ╔═╡ e4ab6b70-7384-4564-95a9-3d2c2451e5e7
 md"""
@@ -101,6 +92,29 @@ md"""
 # ╔═╡ c0b3d047-8b3c-45ef-9a16-ec1d15f5c172
 md"""
 # Functions
+"""
+
+# ╔═╡ 90074055-3d6c-4944-b9d9-dfebf88e8f90
+checkword(word) = isempty(setdiff(Set(word), letters))
+
+# ╔═╡ a04f64d6-3805-4597-b025-5ced7021c3cd
+function parse_url_text(url, delim = "\r\n")
+	data = String(HTTP.get(url).body)
+	wordlist = split(data, delim)
+	string.(filter(checkword, wordlist))
+end
+
+# ╔═╡ fd06a7d3-2fc6-4189-8cfe-45111728e54c
+# ╠═╡ show_logs = false
+const word_loaders = Dict([
+	"Big_Word_list_1517k" => filter(checkword, dropmissing(CSV.read(open_zip(HTTP.get("https://www.keithv.com/software/wlist/wlist_match1.zip").body)["wlist_match1.txt"], DataFrame, header = false), 1)[!, 1]),
+	"InfoChimps_350k" => parse_url_text("https://raw.githubusercontent.com/dwyl/english-words/master/words_alpha.txt"),
+	"CommonWords_25k" => parse_url_text("https://raw.githubusercontent.com/dolph/dictionary/master/popular.txt", '\n')
+])
+
+# ╔═╡ 1932f5f2-3394-43cb-975b-6df0d468922c
+md"""
+Select Dictionary Word List $(@bind wordlist Select(collect(keys(word_loaders)), default = "CommonWords_25k"))
 """
 
 # ╔═╡ 260cb3ed-9090-4517-8e11-f358982276a1
@@ -198,8 +212,9 @@ ZipFile = "~0.10.0"
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.7.3"
+julia_version = "1.8.0"
 manifest_format = "2.0"
+project_hash = "ffb513e42b9dbeb265742eccd4357590ff683d6d"
 
 [[deps.AbstractPlutoDingetjes]]
 deps = ["Pkg"]
@@ -209,6 +224,7 @@ version = "1.1.4"
 
 [[deps.ArgTools]]
 uuid = "0dad84c5-d112-42e6-8d28-ef12dabb789f"
+version = "1.1.1"
 
 [[deps.Artifacts]]
 uuid = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
@@ -243,6 +259,7 @@ version = "3.45.0"
 [[deps.CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
+version = "0.5.2+0"
 
 [[deps.Crayons]]
 git-tree-sha1 = "249fe38abf76d48563e2f4556bebd215aa317e15"
@@ -286,6 +303,7 @@ uuid = "8ba89e20-285c-5b6f-9357-94700520ee1b"
 [[deps.Downloads]]
 deps = ["ArgTools", "FileWatching", "LibCURL", "NetworkOptions"]
 uuid = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
+version = "1.6.0"
 
 [[deps.FilePathsBase]]
 deps = ["Compat", "Dates", "Mmap", "Printf", "Test", "UUIDs"]
@@ -376,10 +394,12 @@ version = "0.21.3"
 [[deps.LibCURL]]
 deps = ["LibCURL_jll", "MozillaCACerts_jll"]
 uuid = "b27032c2-a3e7-50c8-80cd-2d36dbcbfd21"
+version = "0.6.3"
 
 [[deps.LibCURL_jll]]
 deps = ["Artifacts", "LibSSH2_jll", "Libdl", "MbedTLS_jll", "Zlib_jll", "nghttp2_jll"]
 uuid = "deac9b47-8bc7-5906-a0fe-35ac56dc84c0"
+version = "7.84.0+0"
 
 [[deps.LibGit2]]
 deps = ["Base64", "NetworkOptions", "Printf", "SHA"]
@@ -388,6 +408,7 @@ uuid = "76f85450-5226-5b5a-8eaa-529ad045b433"
 [[deps.LibSSH2_jll]]
 deps = ["Artifacts", "Libdl", "MbedTLS_jll"]
 uuid = "29816b5a-b9ab-546f-933c-edad1886dfa8"
+version = "1.10.2+0"
 
 [[deps.Libdl]]
 uuid = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
@@ -418,6 +439,7 @@ version = "1.1.3"
 [[deps.MbedTLS_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "c8ffd9c3-330d-5841-b78e-0817d7145fa1"
+version = "2.28.0+0"
 
 [[deps.Missings]]
 deps = ["DataAPI"]
@@ -430,13 +452,16 @@ uuid = "a63ad114-7e13-5084-954f-fe012c677804"
 
 [[deps.MozillaCACerts_jll]]
 uuid = "14a3606d-f60d-562e-9121-12d972cd8159"
+version = "2022.2.1"
 
 [[deps.NetworkOptions]]
 uuid = "ca575930-c2e3-43a9-ace4-1e988b2c1908"
+version = "1.2.0"
 
 [[deps.OpenBLAS_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "4536629a-c528-5b80-bd46-f80d51c5b363"
+version = "0.3.20+0"
 
 [[deps.OrderedCollections]]
 git-tree-sha1 = "85f8e6578bf1f9ee0d11e7bb1b1456435479d47c"
@@ -452,6 +477,7 @@ version = "2.3.2"
 [[deps.Pkg]]
 deps = ["Artifacts", "Dates", "Downloads", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "REPL", "Random", "SHA", "Serialization", "TOML", "Tar", "UUIDs", "p7zip_jll"]
 uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
+version = "1.8.0"
 
 [[deps.PlutoUI]]
 deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "JSON", "Logging", "Markdown", "Random", "Reexport", "UUIDs"]
@@ -490,6 +516,7 @@ version = "1.2.2"
 
 [[deps.SHA]]
 uuid = "ea8e919c-243c-51af-8825-aaa63cd721ce"
+version = "0.7.0"
 
 [[deps.SentinelArrays]]
 deps = ["Dates", "Random"]
@@ -529,6 +556,7 @@ uuid = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 [[deps.TOML]]
 deps = ["Dates"]
 uuid = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
+version = "1.0.0"
 
 [[deps.TableTraits]]
 deps = ["IteratorInterfaceExtensions"]
@@ -545,6 +573,7 @@ version = "1.7.0"
 [[deps.Tar]]
 deps = ["ArgTools", "SHA"]
 uuid = "a4e569a6-e804-4fa4-b0f3-eef7a1d5b13e"
+version = "1.10.0"
 
 [[deps.Test]]
 deps = ["InteractiveUtils", "Logging", "Random", "Serialization"]
@@ -588,18 +617,22 @@ version = "0.10.0"
 [[deps.Zlib_jll]]
 deps = ["Libdl"]
 uuid = "83775a58-1f1d-513f-b197-d71354ab007a"
+version = "1.2.12+3"
 
 [[deps.libblastrampoline_jll]]
 deps = ["Artifacts", "Libdl", "OpenBLAS_jll"]
 uuid = "8e850b90-86db-534c-a0d3-1478176c7d93"
+version = "5.1.1+0"
 
 [[deps.nghttp2_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850ede-7688-5339-a07c-302acd2aaf8d"
+version = "1.48.0+0"
 
 [[deps.p7zip_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
+version = "17.4.0+0"
 """
 
 # ╔═╡ Cell order:
@@ -617,6 +650,7 @@ uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
 # ╠═82f6fe1c-0139-4375-8e28-a1d632ae0d35
 # ╠═862e3e4b-cfd3-438a-bc62-a197a776449a
 # ╠═76107a99-7039-4f63-98a8-08f7092fb5d7
+# ╠═488cce85-c8b6-4d75-b9d3-8924a05a7b73
 # ╠═fd06a7d3-2fc6-4189-8cfe-45111728e54c
 # ╠═5c1287f6-5fbd-4768-be66-7dbb67a2802b
 # ╟─e4ab6b70-7384-4564-95a9-3d2c2451e5e7
@@ -627,6 +661,8 @@ uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
 # ╠═d628a50a-15e4-408e-a15c-14c1ff4aafe0
 # ╠═cf1f1cbf-7772-436e-84b2-8d8a5a909f1a
 # ╟─c0b3d047-8b3c-45ef-9a16-ec1d15f5c172
+# ╠═a04f64d6-3805-4597-b025-5ced7021c3cd
+# ╠═90074055-3d6c-4944-b9d9-dfebf88e8f90
 # ╠═260cb3ed-9090-4517-8e11-f358982276a1
 # ╠═c961807f-9d47-4625-bea9-48335701a0f7
 # ╠═ab2b13f6-79f0-4abe-8b79-02a650a0e0e2
