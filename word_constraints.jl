@@ -16,7 +16,7 @@ end
 
 # ╔═╡ 98b31aa2-1b58-11ed-2476-87a9652f2d34
 # ╠═╡ show_logs = false
-using HTTP, DataFrames, CSV, PlutoUI, InfoZIP, ZipFile
+using HTTP, ZipFile, DataFrames, CSV, PlutoUI
 
 # ╔═╡ d87b02e1-4fa1-4136-859d-1f604c2958da
 md"""
@@ -81,9 +81,6 @@ Consonants
 $(@bind undesiredconsonants MultiCheckBox(setdiff(consonants, desiredconsonants), select_all=true))
 """
 
-# ╔═╡ 488cce85-c8b6-4d75-b9d3-8924a05a7b73
-download("https://www.keithv.com/software/wlist/wlist_match1.zip")
-
 # ╔═╡ e4ab6b70-7384-4564-95a9-3d2c2451e5e7
 md"""
 # Dynamic Variables
@@ -107,7 +104,7 @@ end
 # ╔═╡ fd06a7d3-2fc6-4189-8cfe-45111728e54c
 # ╠═╡ show_logs = false
 const word_loaders = Dict([
-	"Big_Word_list_1517k" => filter(checkword, dropmissing(CSV.read(open_zip(HTTP.get("https://www.keithv.com/software/wlist/wlist_match1.zip").body)["wlist_match1.txt"], DataFrame, header = false), 1)[!, 1]),
+	"Big_Word_list_1517k" => filter(checkword, dropmissing(CSV.read(ZipFile.Reader(IOBuffer(HTTP.get("https://www.keithv.com/software/wlist/wlist_match1.zip").body)).files[1], DataFrame, header=false, buffer_in_memory=true, footerskip = 5, skipto = 11, silencewarnings=true), 1)[!, 1]),
 	"InfoChimps_350k" => parse_url_text("https://raw.githubusercontent.com/dwyl/english-words/master/words_alpha.txt"),
 	"CommonWords_25k" => parse_url_text("https://raw.githubusercontent.com/dolph/dictionary/master/popular.txt", '\n')
 ])
@@ -195,7 +192,6 @@ PLUTO_PROJECT_TOML_CONTENTS = """
 CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 HTTP = "cd3eb016-35fb-5094-929b-558a96fad6f3"
-InfoZIP = "f4508453-b816-52ab-a864-26fc7f6211fc"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
 ZipFile = "a5390f91-8eb1-5f08-bee0-b1d1ffed6cea"
 
@@ -203,7 +199,6 @@ ZipFile = "a5390f91-8eb1-5f08-bee0-b1d1ffed6cea"
 CSV = "~0.10.4"
 DataFrames = "~1.3.4"
 HTTP = "~1.2.1"
-InfoZIP = "~0.2.0"
 PlutoUI = "~0.7.39"
 ZipFile = "~0.10.0"
 """
@@ -212,9 +207,9 @@ ZipFile = "~0.10.0"
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.8.0"
+julia_version = "1.8.1"
 manifest_format = "2.0"
-project_hash = "ffb513e42b9dbeb265742eccd4357590ff683d6d"
+project_hash = "19460552b1e86de4b8ae935fd6dff86c2bba448a"
 
 [[deps.AbstractPlutoDingetjes]]
 deps = ["Pkg"]
@@ -353,12 +348,6 @@ deps = ["Logging", "Random"]
 git-tree-sha1 = "f7be53659ab06ddc986428d3a9dcc95f6fa6705a"
 uuid = "b5f81e59-6552-4d32-b1f0-c071b021bf89"
 version = "0.2.2"
-
-[[deps.InfoZIP]]
-deps = ["Test"]
-git-tree-sha1 = "087ad2b31892c028b7a56e0a502b13d91faa4b96"
-uuid = "f4508453-b816-52ab-a864-26fc7f6211fc"
-version = "0.2.0"
 
 [[deps.IniFile]]
 git-tree-sha1 = "f550e6e32074c939295eb5ea6de31849ac2c9625"
@@ -650,7 +639,6 @@ version = "17.4.0+0"
 # ╠═82f6fe1c-0139-4375-8e28-a1d632ae0d35
 # ╠═862e3e4b-cfd3-438a-bc62-a197a776449a
 # ╠═76107a99-7039-4f63-98a8-08f7092fb5d7
-# ╠═488cce85-c8b6-4d75-b9d3-8924a05a7b73
 # ╠═fd06a7d3-2fc6-4189-8cfe-45111728e54c
 # ╠═5c1287f6-5fbd-4768-be66-7dbb67a2802b
 # ╟─e4ab6b70-7384-4564-95a9-3d2c2451e5e7
