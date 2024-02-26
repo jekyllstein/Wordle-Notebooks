@@ -14,107 +14,101 @@ macro bind(def, element)
     end
 end
 
-# ╔═╡ 98b31aa2-1b58-11ed-2476-87a9652f2d34
-# ╠═╡ show_logs = false
-using HTTP, ZipFile, DataFrames, CSV, PlutoUI
+# ╔═╡ 2ba626a1-8bc3-45fc-8f87-bb8853b4c0bc
+begin
+	using HTTP, ZipFile, DataFrames, CSV, PlutoUI, Transducers
+	TableOfContents()
+end
 
-# ╔═╡ d87b02e1-4fa1-4136-859d-1f604c2958da
+# ╔═╡ 9f827a18-5cfe-43ad-8499-aa312fe974fe
 md"""
-# Readme
+# NYT Spelling Bee Word Suggestions
 
-The goal of this notebook is to see a list of words that fit certain constraints.  In particular the available constraints are word length, unique letters counts, and specific unique letters.  An example of a use case would be to see all 5 letter words that contain only 2 unique letters including 'a' and excluding all other vowels.
-
-The final word list will depend on the dictionary selected.  There are 3 options from the most commonly used 25k words to a large dictionary of over 1.5M.
+Select the 7 letters for today's Spelling Bee game along with the central letter.  All valid guesses contained within the selected dictionary will be shown in alphabetical order sorted by word length.  Pangrams will appear separately at the bottom
 """
 
-# ╔═╡ 8fac8fcb-0221-4068-8587-def0c3cabea0
+# ╔═╡ c76059ab-2e58-4694-b282-fcddffd127d3
 md"""
-# Select Desired Word Properties
-#### Word Length $(@bind n NumberField(1:10, 5))
+## Suggested Words
 """
 
-# ╔═╡ ef9b04ea-192b-421c-b359-9d35c0f55a74
-md"""
-# Matching Words
-"""
-
-# ╔═╡ 2407b067-d7a3-48d4-8582-a223bed373db
-md"""
-# Dependencies
-"""
-
-# ╔═╡ 7dab7d6d-8746-4266-976b-88c62e08e139
+# ╔═╡ 5c501b35-ed51-49b1-ace4-ba46c9090776
 md"""
 # Constants
 """
 
-# ╔═╡ 82f6fe1c-0139-4375-8e28-a1d632ae0d35
+# ╔═╡ 77714a85-9332-4505-8d24-584f92e722b3
 const letters = collect('a':'z')
 
-# ╔═╡ 862e3e4b-cfd3-438a-bc62-a197a776449a
+# ╔═╡ a11977ba-e0b3-446c-b3ed-4d290f8966cb
+md"""
+Select 7 letters
+$(@bind chars MultiCheckBox(uppercase.(letters)))
+"""
+
+# ╔═╡ 501a0012-ab7e-4962-8489-2613c47f773f
+if length(chars) != 7
+	md"""
+	Select exactly 7 letters
+	"""
+else
+	md"""
+	Select center: $(@bind center Select(chars))
+	"""
+end
+
+# ╔═╡ 495bb5fc-aab3-46ad-9e7f-a99f605583de
 const vowels = ['a', 'e', 'i', 'o', 'u', 'y']
 
-# ╔═╡ 76107a99-7039-4f63-98a8-08f7092fb5d7
+# ╔═╡ 6be8c59e-003e-4ef4-b5f3-5e010387be0e
 const consonants = setdiff(letters, vowels)
 
-# ╔═╡ 23a3f6c9-0e72-4c70-bf86-e7dce14ab81c
-md"""
-#### Unique Letters $(@bind c NumberField(1:n, 2))
-
-#### Required Letters 
-
-Vowels 
-$(@bind desiredvowels MultiCheckBox(vowels, select_all=true))
-
-Consonants
-$(@bind desiredconsonants MultiCheckBox(consonants, select_all=true))
-"""
-
-# ╔═╡ 8962b841-c043-4f4e-8573-c004a8d48acc
-md"""
-#### Forbidden Letters 
-
-Vowels
-$(@bind undesiredvowels MultiCheckBox(setdiff(vowels, desiredvowels), select_all=true))
-
-Consonants
-$(@bind undesiredconsonants MultiCheckBox(setdiff(consonants, desiredconsonants), select_all=true))
-"""
-
-# ╔═╡ e4ab6b70-7384-4564-95a9-3d2c2451e5e7
-md"""
-# Dynamic Variables
-"""
-
-# ╔═╡ c0b3d047-8b3c-45ef-9a16-ec1d15f5c172
+# ╔═╡ f960dbb1-a843-4e32-858f-ac8a24962731
 md"""
 # Functions
 """
 
-# ╔═╡ 90074055-3d6c-4944-b9d9-dfebf88e8f90
+# ╔═╡ bffeb512-ec3e-4339-afcb-5aea03783aee
+function get_words(chars, center, word_properties)
+	charset = Set(chars)
+	df = word_properties |> Filter(a -> a.length > 3) |> Filter(a -> isempty(setdiff(a.unique_letters, charset))) |> Filter(a -> in(center, a.unique_letters)) |> collect |> DataFrame
+	pangrams = filter(a -> a.unique_letters == charset, df)
+	others = filter(a -> a.unique_letters != charset, df)
+	gdf = groupby(others, :length)
+	lengths = keys(gdf)
+	valid_words = mapreduce(t -> md"""Word Length $(lengths[first(t)].length): $(uppercase.(last(t)))""", (a, b) -> md"""$a  $b""", enumerate([reduce((a, b) -> string(a, " ", b), df.word) for df in gdf]))
+	pangrams = mapreduce(a -> uppercase(a.word), (a, b) -> """$a $b""", eachrow(pangrams), init = "")
+	md"""
+	$valid_words
+
+	Pangrams:
+	$pangrams
+	"""
+end
+
+# ╔═╡ 7dcc9842-99d2-4355-9b46-71c84324938e
 checkword(word) = isempty(setdiff(Set(word), letters))
 
-# ╔═╡ a04f64d6-3805-4597-b025-5ced7021c3cd
+# ╔═╡ 13666f0f-5d22-4575-a527-33426eb60f83
 function parse_url_text(url, delim = "\r\n")
 	data = String(HTTP.get(url).body)
 	wordlist = split(data, delim)
 	string.(filter(checkword, wordlist))
 end
 
-# ╔═╡ fd06a7d3-2fc6-4189-8cfe-45111728e54c
-# ╠═╡ show_logs = false
+# ╔═╡ 556b503f-0385-4d41-adca-b932493d7698
 const word_loaders = Dict([
 	"Big_Word_list_1517k" => filter(checkword, dropmissing(CSV.read(ZipFile.Reader(IOBuffer(HTTP.get("https://www.keithv.com/software/wlist/wlist_match1.zip").body)).files[1], DataFrame, header=false, buffer_in_memory=true, footerskip = 5, skipto = 11, silencewarnings=true), 1)[!, 1]),
 	"InfoChimps_350k" => parse_url_text("https://raw.githubusercontent.com/dwyl/english-words/master/words_alpha.txt"),
 	"CommonWords_25k" => parse_url_text("https://raw.githubusercontent.com/dolph/dictionary/master/popular.txt", '\n')
 ])
 
-# ╔═╡ 1932f5f2-3394-43cb-975b-6df0d468922c
+# ╔═╡ 278360ae-cd36-425c-b97a-98e12ba8b2ff
 md"""
 Select Dictionary Word List $(@bind wordlist Select(collect(keys(word_loaders)), default = "CommonWords_25k"))
 """
 
-# ╔═╡ 260cb3ed-9090-4517-8e11-f358982276a1
+# ╔═╡ 5525edcb-adb6-4735-8248-4cb5cea4bdc5
 function check_key(desiredletters::Set{Char}, undesiredletters::Set{Char}, key::Set{Char})
 #check to see if a key contains all the desired letters and none of the undesired lettres
 	c1 = isempty(setdiff(desiredletters, key))
@@ -122,14 +116,14 @@ function check_key(desiredletters::Set{Char}, undesiredletters::Set{Char}, key::
 	c1 && c2
 end
 
-# ╔═╡ c961807f-9d47-4625-bea9-48335701a0f7
+# ╔═╡ 53db2cce-05d5-4731-a280-043287066c87
 function get_available_keys(desiredletters, undesiredletters, tbl_select)
 	set1 = Set(desiredletters)
 	set2 = Set(undesiredletters)
 	filter(a -> check_key(set1, set2, a.unique_letters), keys(tbl_select))
 end
 
-# ╔═╡ ab2b13f6-79f0-4abe-8b79-02a650a0e0e2
+# ╔═╡ 31751b65-07c9-4d37-864c-b12ea68c9a24
 function make_word_property_table(words)
 	wordlength = length.(words)
 	unique_letters = Set.(unique.(words))
@@ -137,54 +131,23 @@ function make_word_property_table(words)
 	DataFrame(word = words, length = wordlength, unique_letters = unique_letters, unique_count = unique_count)
 end
 
-# ╔═╡ 5c1287f6-5fbd-4768-be66-7dbb67a2802b
+# ╔═╡ d5d5d3fe-8366-4b31-958c-22d26e5e2c8b
 const word_properties = Dict(k => make_word_property_table(word_loaders[k]) for k in keys(word_loaders))
 
-# ╔═╡ ce352791-9680-44b0-84df-906b34253cc3
-tbl_select = groupby(select(filter(a -> a.length == n && a.unique_count == c, word_properties[wordlist]), [:word, :unique_letters]), :unique_letters)
-
-# ╔═╡ 2ee354c2-d9f5-4efc-b06a-c78180de20b7
-availablekeys = get_available_keys(union(desiredvowels, desiredconsonants), union(undesiredvowels, undesiredconsonants), tbl_select)
-
-# ╔═╡ ff76d227-043f-422f-a087-914ce9027b25
-availablechars = isempty(availablekeys) ? Vector{Char}() : reduce(union, a.unique_letters for a in availablekeys) |> collect |> sort
-
-# ╔═╡ 04d388d1-898d-4838-927d-3cd731887d4e
-md"""
-Unselect characters to remove matching words that contain that letter
-$(@bind charselect MultiCheckBox(availablechars, default = availablechars, select_all=true))
-"""
-
-# ╔═╡ d628a50a-15e4-408e-a15c-14c1ff4aafe0
-charset = Set(charselect)
-
-# ╔═╡ cf1f1cbf-7772-436e-84b2-8d8a5a909f1a
-keyselect = filter(k -> isempty(setdiff(k.unique_letters, charset)), availablekeys)
-
-# ╔═╡ d181317e-c844-43da-812d-927a66f478a4
-finalwordlist = isempty(keyselect) ? Vector{String}() : reduce(vcat, (collect(tbl_select[k].word) for k in keyselect))
-
-# ╔═╡ a171f129-4847-4dba-a5f5-9a88fc18ac80
-if isempty(finalwordlist)
-	md"""
-	No matching words
-	"""
-else
-	Markdown.parse(reduce((a, b) -> "$a, $b", finalwordlist))
+# ╔═╡ ae581eb9-5280-4931-8533-ab0170a7cf7b
+if @isdefined center 
+	get_words(lowercase.(chars), lowercase(center), word_properties[wordlist])
 end
 
-# ╔═╡ 26f8472a-886a-4401-9ea5-f4f59b2eb29b
+# ╔═╡ 8a4850ee-7843-4b23-b3e1-88459638b7a2
 function n_letter_words(n::Integer)
 	filter(a -> length(a) == n, words)
 end
 
-# ╔═╡ 424b204f-35f1-4071-9021-8fc392d30af1
+# ╔═╡ 419a157d-870f-4ea0-b3f0-0c0cde4ddd02
 md"""
-# Table of Contents Settings
+# Dependencies
 """
-
-# ╔═╡ 85605b23-4beb-4baf-9317-0530bc11983b
-PlutoUI.TableOfContents(title="Table of Contents", indent=true)
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -193,6 +156,7 @@ CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 HTTP = "cd3eb016-35fb-5094-929b-558a96fad6f3"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
+Transducers = "28d57a85-8fef-5791-bfe6-a80928e7c999"
 ZipFile = "a5390f91-8eb1-5f08-bee0-b1d1ffed6cea"
 
 [compat]
@@ -200,6 +164,7 @@ CSV = "~0.10.12"
 DataFrames = "~1.6.1"
 HTTP = "~1.10.2"
 PlutoUI = "~0.7.58"
+Transducers = "~0.4.81"
 ZipFile = "~0.10.1"
 """
 
@@ -209,13 +174,49 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.10.1"
 manifest_format = "2.0"
-project_hash = "99a19db354c719c89827c5d9abf5a3027376e6ac"
+project_hash = "d5e87fef52635e3d5693866a23c3aa2d57a51893"
 
 [[deps.AbstractPlutoDingetjes]]
 deps = ["Pkg"]
 git-tree-sha1 = "c278dfab760520b8bb7e9511b968bf4ba38b7acc"
 uuid = "6e696c72-6542-2067-7265-42206c756150"
 version = "1.2.3"
+
+[[deps.Accessors]]
+deps = ["CompositionsBase", "ConstructionBase", "Dates", "InverseFunctions", "LinearAlgebra", "MacroTools", "Test"]
+git-tree-sha1 = "cb96992f1bec110ad211b7e410e57ddf7944c16f"
+uuid = "7d9f7c33-5ae7-4f3b-8dc6-eff91059b697"
+version = "0.1.35"
+
+    [deps.Accessors.extensions]
+    AccessorsAxisKeysExt = "AxisKeys"
+    AccessorsIntervalSetsExt = "IntervalSets"
+    AccessorsStaticArraysExt = "StaticArrays"
+    AccessorsStructArraysExt = "StructArrays"
+
+    [deps.Accessors.weakdeps]
+    AxisKeys = "94b1ba4f-4ee9-5380-92f1-94cde586c3c5"
+    IntervalSets = "8197267c-284f-5f27-9208-e0e47529a953"
+    Requires = "ae029012-a4dd-5104-9daa-d747884805df"
+    StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
+    StructArrays = "09ab397b-f2b6-538f-b94a-2f83cf4a842a"
+
+[[deps.Adapt]]
+deps = ["LinearAlgebra", "Requires"]
+git-tree-sha1 = "0fb305e0253fd4e833d486914367a2ee2c2e78d0"
+uuid = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
+version = "4.0.1"
+
+    [deps.Adapt.extensions]
+    AdaptStaticArraysExt = "StaticArrays"
+
+    [deps.Adapt.weakdeps]
+    StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
+
+[[deps.ArgCheck]]
+git-tree-sha1 = "a3a402a35a2f7e0b87828ccabbd5ebfbebe356b4"
+uuid = "dce04be8-c92d-5529-be00-80e4d2c0e197"
+version = "2.3.0"
 
 [[deps.ArgTools]]
 uuid = "0dad84c5-d112-42e6-8d28-ef12dabb789f"
@@ -224,8 +225,35 @@ version = "1.1.1"
 [[deps.Artifacts]]
 uuid = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
 
+[[deps.BangBang]]
+deps = ["Accessors", "Compat", "ConstructionBase", "InitialValues", "LinearAlgebra", "Requires"]
+git-tree-sha1 = "490e739172eb18f762e68dc3b928cad2a077983a"
+uuid = "198e06fe-97b7-11e9-32a5-e1d131e6ad66"
+version = "0.4.1"
+
+    [deps.BangBang.extensions]
+    BangBangChainRulesCoreExt = "ChainRulesCore"
+    BangBangDataFramesExt = "DataFrames"
+    BangBangStaticArraysExt = "StaticArrays"
+    BangBangStructArraysExt = "StructArrays"
+    BangBangTablesExt = "Tables"
+    BangBangTypedTablesExt = "TypedTables"
+
+    [deps.BangBang.weakdeps]
+    ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
+    DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+    StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
+    StructArrays = "09ab397b-f2b6-538f-b94a-2f83cf4a842a"
+    Tables = "bd369af6-aec1-5ad0-b16a-f7cc5008161c"
+    TypedTables = "9d95f2ec-7b3d-5a63-8d20-e2491e220bb9"
+
 [[deps.Base64]]
 uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
+
+[[deps.Baselet]]
+git-tree-sha1 = "aebf55e6d7795e02ca500a689d326ac979aaf89e"
+uuid = "9718e550-a3fa-408a-8086-8db961cd8217"
+version = "0.1.1"
 
 [[deps.BitFlags]]
 git-tree-sha1 = "2dc09997850d68179b69dafb58ae806167a32b1b"
@@ -265,11 +293,34 @@ deps = ["Artifacts", "Libdl"]
 uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
 version = "1.1.0+0"
 
+[[deps.CompositionsBase]]
+git-tree-sha1 = "802bb88cd69dfd1509f6670416bd4434015693ad"
+uuid = "a33af91c-f02d-484b-be07-31d278c5ca2b"
+version = "0.1.2"
+weakdeps = ["InverseFunctions"]
+
+    [deps.CompositionsBase.extensions]
+    CompositionsBaseInverseFunctionsExt = "InverseFunctions"
+
 [[deps.ConcurrentUtilities]]
 deps = ["Serialization", "Sockets"]
 git-tree-sha1 = "9c4708e3ed2b799e6124b5673a712dda0b596a9b"
 uuid = "f0e56b4a-5159-44fe-b623-3e5288b988bb"
 version = "2.3.1"
+
+[[deps.ConstructionBase]]
+deps = ["LinearAlgebra"]
+git-tree-sha1 = "c53fc348ca4d40d7b371e71fd52251839080cbc9"
+uuid = "187b0558-2788-49d3-abe0-74a17ed4e7c9"
+version = "1.5.4"
+
+    [deps.ConstructionBase.extensions]
+    ConstructionBaseIntervalSetsExt = "IntervalSets"
+    ConstructionBaseStaticArraysExt = "StaticArrays"
+
+    [deps.ConstructionBase.weakdeps]
+    IntervalSets = "8197267c-284f-5f27-9208-e0e47529a953"
+    StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
 [[deps.Crayons]]
 git-tree-sha1 = "249fe38abf76d48563e2f4556bebd215aa317e15"
@@ -301,6 +352,15 @@ version = "1.0.0"
 [[deps.Dates]]
 deps = ["Printf"]
 uuid = "ade2ca70-3891-5945-98fb-dc099432e06a"
+
+[[deps.DefineSingletons]]
+git-tree-sha1 = "0fba8b706d0178b4dc7fd44a96a92382c9065c2c"
+uuid = "244e2a9f-e319-4986-a169-4d1fe445cd52"
+version = "0.1.2"
+
+[[deps.Distributed]]
+deps = ["Random", "Serialization", "Sockets"]
+uuid = "8ba89e20-285c-5b6f-9357-94700520ee1b"
 
 [[deps.Downloads]]
 deps = ["ArgTools", "FileWatching", "LibCURL", "NetworkOptions"]
@@ -356,6 +416,11 @@ git-tree-sha1 = "8b72179abc660bfab5e28472e019392b97d0985c"
 uuid = "b5f81e59-6552-4d32-b1f0-c071b021bf89"
 version = "0.2.4"
 
+[[deps.InitialValues]]
+git-tree-sha1 = "4da0f88e9a39111c2fa3add390ab15f3a44f3ca3"
+uuid = "22cec73e-a1b8-11e9-2c92-598750a2cf9c"
+version = "0.3.1"
+
 [[deps.InlineStrings]]
 deps = ["Parsers"]
 git-tree-sha1 = "9cc2baf75c6d09f9da536ddf58eb2f29dedaf461"
@@ -365,6 +430,12 @@ version = "1.4.0"
 [[deps.InteractiveUtils]]
 deps = ["Markdown"]
 uuid = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
+
+[[deps.InverseFunctions]]
+deps = ["Test"]
+git-tree-sha1 = "68772f49f54b479fa88ace904f6127f0a3bb2e46"
+uuid = "3587e190-3f89-42d0-90ee-14403ec27112"
+version = "0.1.12"
 
 [[deps.InvertedIndices]]
 git-tree-sha1 = "0dc7b50b8d436461be01300fd8cd45aa0274b038"
@@ -438,6 +509,12 @@ git-tree-sha1 = "65f28ad4b594aebe22157d6fac869786a255b7eb"
 uuid = "6c6e2e6c-3030-632d-7369-2d6c69616d65"
 version = "0.1.4"
 
+[[deps.MacroTools]]
+deps = ["Markdown", "Random"]
+git-tree-sha1 = "2fa9ee3e63fd3a4f7a9a4f4744a52f4856de82df"
+uuid = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
+version = "0.5.13"
+
 [[deps.Markdown]]
 deps = ["Base64"]
 uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
@@ -452,6 +529,12 @@ version = "1.1.9"
 deps = ["Artifacts", "Libdl"]
 uuid = "c8ffd9c3-330d-5841-b78e-0817d7145fa1"
 version = "2.28.2+1"
+
+[[deps.MicroCollections]]
+deps = ["Accessors", "BangBang", "InitialValues"]
+git-tree-sha1 = "44d32db644e84c75dab479f1bc15ee76a1a3618f"
+uuid = "128add7d-3638-4c79-886c-908ea0c25c34"
+version = "0.2.0"
 
 [[deps.Missings]]
 deps = ["DataAPI"]
@@ -550,6 +633,12 @@ git-tree-sha1 = "45e428421666073eab6f2da5c9d310d99bb12f9b"
 uuid = "189a3867-3050-52da-a836-e630ba90ab69"
 version = "1.2.2"
 
+[[deps.Requires]]
+deps = ["UUIDs"]
+git-tree-sha1 = "838a3a4188e2ded87a4f9f184b4b0d78a1e91cb7"
+uuid = "ae029012-a4dd-5104-9daa-d747884805df"
+version = "1.3.0"
+
 [[deps.SHA]]
 uuid = "ea8e919c-243c-51af-8825-aaa63cd721ce"
 version = "0.7.0"
@@ -562,6 +651,12 @@ version = "1.4.1"
 
 [[deps.Serialization]]
 uuid = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
+
+[[deps.Setfield]]
+deps = ["ConstructionBase", "Future", "MacroTools", "StaticArraysCore"]
+git-tree-sha1 = "e2cc6d8c88613c05e1defb55170bf5ff211fbeac"
+uuid = "efcf1570-3423-57d1-acb7-fd33fddbac46"
+version = "1.1.1"
 
 [[deps.SimpleBufferStream]]
 git-tree-sha1 = "874e8867b33a00e784c8a7e4b60afe9e037b74e1"
@@ -581,6 +676,17 @@ version = "1.2.1"
 deps = ["Libdl", "LinearAlgebra", "Random", "Serialization", "SuiteSparse_jll"]
 uuid = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 version = "1.10.0"
+
+[[deps.SplittablesBase]]
+deps = ["Setfield", "Test"]
+git-tree-sha1 = "e08a62abc517eb79667d0a29dc08a3b589516bb5"
+uuid = "171d559e-b47b-412a-8079-5efa626c420e"
+version = "0.1.15"
+
+[[deps.StaticArraysCore]]
+git-tree-sha1 = "36b3d696ce6366023a0ea192b4cd442268995a0d"
+uuid = "1e83bf80-4336-4d27-bf5d-d5a4f845583c"
+version = "1.4.2"
 
 [[deps.Statistics]]
 deps = ["LinearAlgebra", "SparseArrays"]
@@ -632,6 +738,26 @@ weakdeps = ["Random", "Test"]
 
     [deps.TranscodingStreams.extensions]
     TestExt = ["Test", "Random"]
+
+[[deps.Transducers]]
+deps = ["Accessors", "Adapt", "ArgCheck", "BangBang", "Baselet", "CompositionsBase", "ConstructionBase", "DefineSingletons", "Distributed", "InitialValues", "Logging", "Markdown", "MicroCollections", "Requires", "SplittablesBase", "Tables"]
+git-tree-sha1 = "47e516e2eabd0cf1304cd67839d9a85d52dd659d"
+uuid = "28d57a85-8fef-5791-bfe6-a80928e7c999"
+version = "0.4.81"
+
+    [deps.Transducers.extensions]
+    TransducersBlockArraysExt = "BlockArrays"
+    TransducersDataFramesExt = "DataFrames"
+    TransducersLazyArraysExt = "LazyArrays"
+    TransducersOnlineStatsBaseExt = "OnlineStatsBase"
+    TransducersReferenceablesExt = "Referenceables"
+
+    [deps.Transducers.weakdeps]
+    BlockArrays = "8e7c35d0-a365-5155-bbbb-fb81a777f24e"
+    DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+    LazyArrays = "5078a376-72f3-5289-bfd5-ec5146d43c02"
+    OnlineStatsBase = "925886fa-5bf2-5e8e-b522-a9147a512338"
+    Referenceables = "42d2dcc6-99eb-4e98-b66c-637b7d73030e"
 
 [[deps.Tricks]]
 git-tree-sha1 = "eae1bb484cd63b36999ee58be2de6c178105112f"
@@ -689,37 +815,27 @@ version = "17.4.0+2"
 """
 
 # ╔═╡ Cell order:
-# ╟─d87b02e1-4fa1-4136-859d-1f604c2958da
-# ╟─1932f5f2-3394-43cb-975b-6df0d468922c
-# ╟─8fac8fcb-0221-4068-8587-def0c3cabea0
-# ╟─23a3f6c9-0e72-4c70-bf86-e7dce14ab81c
-# ╟─8962b841-c043-4f4e-8573-c004a8d48acc
-# ╟─ef9b04ea-192b-421c-b359-9d35c0f55a74
-# ╟─04d388d1-898d-4838-927d-3cd731887d4e
-# ╟─a171f129-4847-4dba-a5f5-9a88fc18ac80
-# ╟─2407b067-d7a3-48d4-8582-a223bed373db
-# ╠═98b31aa2-1b58-11ed-2476-87a9652f2d34
-# ╟─7dab7d6d-8746-4266-976b-88c62e08e139
-# ╠═82f6fe1c-0139-4375-8e28-a1d632ae0d35
-# ╠═862e3e4b-cfd3-438a-bc62-a197a776449a
-# ╠═76107a99-7039-4f63-98a8-08f7092fb5d7
-# ╠═fd06a7d3-2fc6-4189-8cfe-45111728e54c
-# ╠═5c1287f6-5fbd-4768-be66-7dbb67a2802b
-# ╟─e4ab6b70-7384-4564-95a9-3d2c2451e5e7
-# ╠═d181317e-c844-43da-812d-927a66f478a4
-# ╠═ce352791-9680-44b0-84df-906b34253cc3
-# ╠═2ee354c2-d9f5-4efc-b06a-c78180de20b7
-# ╠═ff76d227-043f-422f-a087-914ce9027b25
-# ╠═d628a50a-15e4-408e-a15c-14c1ff4aafe0
-# ╠═cf1f1cbf-7772-436e-84b2-8d8a5a909f1a
-# ╟─c0b3d047-8b3c-45ef-9a16-ec1d15f5c172
-# ╠═a04f64d6-3805-4597-b025-5ced7021c3cd
-# ╠═90074055-3d6c-4944-b9d9-dfebf88e8f90
-# ╠═260cb3ed-9090-4517-8e11-f358982276a1
-# ╠═c961807f-9d47-4625-bea9-48335701a0f7
-# ╠═ab2b13f6-79f0-4abe-8b79-02a650a0e0e2
-# ╠═26f8472a-886a-4401-9ea5-f4f59b2eb29b
-# ╟─424b204f-35f1-4071-9021-8fc392d30af1
-# ╠═85605b23-4beb-4baf-9317-0530bc11983b
+# ╟─9f827a18-5cfe-43ad-8499-aa312fe974fe
+# ╟─278360ae-cd36-425c-b97a-98e12ba8b2ff
+# ╟─a11977ba-e0b3-446c-b3ed-4d290f8966cb
+# ╟─501a0012-ab7e-4962-8489-2613c47f773f
+# ╟─c76059ab-2e58-4694-b282-fcddffd127d3
+# ╟─ae581eb9-5280-4931-8533-ab0170a7cf7b
+# ╟─5c501b35-ed51-49b1-ace4-ba46c9090776
+# ╠═77714a85-9332-4505-8d24-584f92e722b3
+# ╠═495bb5fc-aab3-46ad-9e7f-a99f605583de
+# ╠═6be8c59e-003e-4ef4-b5f3-5e010387be0e
+# ╠═556b503f-0385-4d41-adca-b932493d7698
+# ╠═d5d5d3fe-8366-4b31-958c-22d26e5e2c8b
+# ╟─f960dbb1-a843-4e32-858f-ac8a24962731
+# ╠═bffeb512-ec3e-4339-afcb-5aea03783aee
+# ╠═13666f0f-5d22-4575-a527-33426eb60f83
+# ╠═7dcc9842-99d2-4355-9b46-71c84324938e
+# ╠═5525edcb-adb6-4735-8248-4cb5cea4bdc5
+# ╠═53db2cce-05d5-4731-a280-043287066c87
+# ╠═31751b65-07c9-4d37-864c-b12ea68c9a24
+# ╠═8a4850ee-7843-4b23-b3e1-88459638b7a2
+# ╟─419a157d-870f-4ea0-b3f0-0c0cde4ddd02
+# ╠═2ba626a1-8bc3-45fc-8f87-bb8853b4c0bc
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
